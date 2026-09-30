@@ -54,8 +54,7 @@ static void send_result(int pipe_fd, const char *filename, const char *path) {
     if (written < 0) { perror("write"); }
 }
 
-static void search_directory(const char *directory_path, const char *filename,
-                             int recursive, int case_insensitive, int pipe_fd) {
+static void search_directory(const char *directory_path, const char *filename, int recursive, int case_insensitive, int pipe_fd) {
     DIR *directory = opendir(directory_path);
 
     if (directory == NULL) {
