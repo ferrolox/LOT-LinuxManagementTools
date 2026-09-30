@@ -54,9 +54,6 @@ static void send_result(int pipe_fd, const char *filename, const char *path) {
     if (written < 0) { perror("write"); }
 }
 
-/*
- * Recursively searches a directory for one filename.
- */
 static void search_directory(const char *directory_path, const char *filename,
                              int recursive, int case_insensitive, int pipe_fd) {
     DIR *directory = opendir(directory_path);
@@ -139,10 +136,6 @@ static void child_search(const char *search_path, const char *filename, int recu
     exit(EXIT_SUCCESS);
 }
 
-
-/*
- * Reads all data from the pipe and writes it to stdout.
- */
 static void read_results(const int pipe_fd) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
