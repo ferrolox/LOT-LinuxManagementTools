@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <sys/syslimits.h>
 
 #define BUFFER_SIZE (PATH_MAX + 256)
 
