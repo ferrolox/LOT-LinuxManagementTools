@@ -29,39 +29,31 @@
 #define BUFFER_SIZE (PATH_MAX + 256)
 
 static int exit_with_usage_error(char *argv[]) {
-    fprintf(stderr,"Usage: %s [-R] [-i] searchpath filename1 [filename2 ...]\n", argv[0]);
+    fprintf(stderr, "Usage: %s [-R] [-i] searchpath filename1 [filename2 ...]\n", argv[0]);
     return EXIT_FAILURE;
 }
 
-/*
- * Sends one complete result line to the parent through the pipe.
- */
-static void send_result(int pipe_fd, const char *filename, const char *path)
-{
-    char absolute_path[PATH_MAX];
-    char output[BUFFER_SIZE];
+static void send_result(int pipe_fd, const char *filename, const char *path) {
+    char absolute_directory_path[PATH_MAX];
 
-    if (realpath(path, absolute_path) == NULL) {
+    if (realpath(path, absolute_directory_path) == NULL) {
         perror("realpath");
         return;
     }
 
-    int length = snprintf(output, sizeof(output), "%ld: %s: %s\n",
-                          (long)getpid(), filename, absolute_path);
+    char output[BUFFER_SIZE];
 
-    if (length < 0 || (size_t)length >= sizeof(output)) {
+    int length = snprintf(output, sizeof(output), "%ld: %s: %s\n", (long)getpid(), filename, absolute_directory_path);
+
+    if (length < 0 || (size_t) length >= sizeof(output)) {
         fprintf(stderr, "Result line is too long\n");
         return;
     }
 
-    /*
-     * A single write keeps the complete result together.
-     */
-    ssize_t written = write(pipe_fd, output, (size_t)length);
+    ssize_t written = write(pipe_fd, output, (size_t) length);
 
     if (written < 0) { perror("write"); }
 }
-
 
 /*
  * Recursively searches a directory for one filename.
@@ -75,50 +67,40 @@ static void search_directory(const char *directory_path, const char *filename,
         return;
     }
 
-    struct dirent *entry;
+    struct dirent *directory_entry;
 
-    while ((entry = readdir(directory)) != NULL) {
-
-        /*
-         * "." refers to the current directory and ".." to its parent.
-         * They must be skipped to prevent infinite recursion.
-         */
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+    while ((directory_entry = readdir(directory)) != NULL) {
+        if (strcmp(directory_entry->d_name, ".") == 0 || strcmp(directory_entry->d_name, "..") == 0) {
             continue;
         }
 
         char full_path[PATH_MAX];
 
-        const int length = snprintf(full_path, sizeof(full_path), "%s/%s", directory_path, entry->d_name);
+        const int length = snprintf(full_path, sizeof(full_path), "%s/%s", directory_path, directory_entry->d_name);
 
-        if (length < 0 || (size_t)length >= sizeof(full_path)) {
-            fprintf(stderr, "Path is too long: %s/%s\n", directory_path, entry->d_name);
+        if (length < 0 || (size_t) length >= sizeof(full_path)) {
+            fprintf(stderr, "Path is too long: %s/%s\n", directory_path, directory_entry->d_name);
             continue;
         }
 
-        /*
-         * Check whether this entry has the filename we're looking for.
-         */
         int matches;
 
-        if (case_insensitive) { matches = strcasecmp(entry->d_name, filename) == 0; }
-        else { matches = strcmp(entry->d_name, filename) == 0; }
+        if (case_insensitive) { matches = strcasecmp(directory_entry->d_name, filename) == 0; } else {
+            matches = strcmp(directory_entry->d_name, filename) == 0;
+        }
 
         if (matches) { send_result(pipe_fd, filename, full_path); }
 
-        /*
-         * If recursive mode is enabled, search inside directories.
-         */
         if (recursive) {
-            struct stat information;
+            struct stat directory_properties;
 
-            if (lstat(full_path, &information) == -1) {
-                fprintf(stderr, "Cannot inspect '%s': %s\n", full_path, strerror(errno));
+            if (lstat(full_path, &directory_properties) == -1) {
+                fprintf(stderr, "Failed to inspect directory '%s' with error: %s\n", full_path, strerror(errno));
                 continue;
             }
 
-            if (S_ISDIR(information.st_mode)) {
-                search_directory(full_path, filename, recursive,case_insensitive, pipe_fd);
+            if (S_ISDIR(directory_properties.st_mode)) {
+                search_directory(full_path, filename, recursive, case_insensitive, pipe_fd);
             }
         }
     }
@@ -126,37 +108,27 @@ static void search_directory(const char *directory_path, const char *filename,
     if (closedir(directory) == -1) { perror("closedir"); }
 }
 
-/*
- * Searches for one filename.
- *
- * This function is executed by exactly one child process for each
- * filename supplied by the user.
- */
 static void child_search(const char *search_path, const char *filename,
                          int recursive, int case_insensitive, int pipe_fd) {
-    /*
-     * If the search path itself is a file, compare it directly.
-     * Normally the assignment expects a directory, but handling this
-     * case makes the program more robust.
-     */
-    struct stat information;
 
-    if (lstat(search_path, &information) == -1) {
+    struct stat directory_properties;
+
+    if (lstat(search_path, &directory_properties) == -1) {
         fprintf(stderr, "Cannot access '%s': %s\n", search_path, strerror(errno));
         close(pipe_fd);
         exit(EXIT_FAILURE);
     }
 
-    if (!S_ISDIR(information.st_mode)) {
+    if (!S_ISDIR(directory_properties.st_mode)) {
         const char *basename = strrchr(search_path, '/');
 
-        if (basename == NULL) { basename = search_path; }
-        else { basename++; }
+        if (basename == NULL) { basename = search_path; } else { basename++; }
 
         int matches;
 
-        if (case_insensitive) { matches = (strcasecmp(basename, filename) == 0); }
-        else { matches = (strcmp(basename, filename) == 0); }
+        if (case_insensitive) { matches = (strcasecmp(basename, filename) == 0); } else {
+            matches = (strcmp(basename, filename) == 0);
+        }
 
         if (matches) { send_result(pipe_fd, filename, search_path); }
 
@@ -174,17 +146,15 @@ static void child_search(const char *search_path, const char *filename,
 /*
  * Reads all data from the pipe and writes it to stdout.
  */
-static void read_results(const int pipe_fd)
-{
+static void read_results(const int pipe_fd) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
 
     while ((bytes_read = read(pipe_fd, buffer, sizeof(buffer))) > 0) {
-
         ssize_t total_written = 0;
 
         while (total_written < bytes_read) {
-            const ssize_t written = write(STDOUT_FILENO, buffer + total_written, (size_t)(bytes_read - total_written));
+            const ssize_t written = write(STDOUT_FILENO, buffer + total_written, (size_t) (bytes_read - total_written));
 
             if (written < 0) {
                 perror("write");
@@ -247,7 +217,7 @@ int main(const int argc, char *argv[]) {
     /*
      * Store the child PIDs so that the parent can wait for every child.
      */
-    pid_t *child_pids = malloc((size_t)filename_count * sizeof(pid_t));
+    pid_t *child_pids = malloc((size_t) filename_count * sizeof(pid_t));
 
     if (child_pids == NULL) {
         perror("malloc");
