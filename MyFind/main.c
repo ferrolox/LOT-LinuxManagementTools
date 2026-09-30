@@ -42,7 +42,6 @@ static void send_result(int pipe_fd, const char *filename, const char *path) {
     }
 
     char output[BUFFER_SIZE];
-
     int length = snprintf(output, sizeof(output), "%ld: %s: %s\n", (long)getpid(), filename, absolute_directory_path);
 
     if (length < 0 || (size_t) length >= sizeof(output)) {
@@ -85,9 +84,8 @@ static void search_directory(const char *directory_path, const char *filename,
 
         int matches;
 
-        if (case_insensitive) { matches = strcasecmp(directory_entry->d_name, filename) == 0; } else {
-            matches = strcmp(directory_entry->d_name, filename) == 0;
-        }
+        if (case_insensitive) { matches = strcasecmp(directory_entry->d_name, filename) == 0; }
+        else { matches = strcmp(directory_entry->d_name, filename) == 0; }
 
         if (matches) { send_result(pipe_fd, filename, full_path); }
 
@@ -108,9 +106,8 @@ static void search_directory(const char *directory_path, const char *filename,
     if (closedir(directory) == -1) { perror("closedir"); }
 }
 
-static void child_search(const char *search_path, const char *filename,
-                         int recursive, int case_insensitive, int pipe_fd) {
-
+static void child_search(const char *search_path, const char *filename, int recursive, int case_insensitive,
+                         int pipe_fd) {
     struct stat directory_properties;
 
     if (lstat(search_path, &directory_properties) == -1) {
@@ -122,13 +119,13 @@ static void child_search(const char *search_path, const char *filename,
     if (!S_ISDIR(directory_properties.st_mode)) {
         const char *basename = strrchr(search_path, '/');
 
-        if (basename == NULL) { basename = search_path; } else { basename++; }
+        if (basename == NULL) { basename = search_path; }
+        else { basename++; }
 
         int matches;
 
-        if (case_insensitive) { matches = (strcasecmp(basename, filename) == 0); } else {
-            matches = (strcmp(basename, filename) == 0);
-        }
+        if (case_insensitive) { matches = (strcasecmp(basename, filename) == 0); }
+        else { matches = (strcmp(basename, filename) == 0); }
 
         if (matches) { send_result(pipe_fd, filename, search_path); }
 
@@ -268,9 +265,7 @@ int main(const int argc, char *argv[]) {
     for (int i = 0; i < children_created; i++) {
         int status;
 
-        if (waitpid(child_pids[i], &status, 0) == -1) {
-            perror("waitpid");
-        }
+        if (waitpid(child_pids[i], &status, 0) == -1) { perror("waitpid"); }
     }
 
     free(child_pids);
