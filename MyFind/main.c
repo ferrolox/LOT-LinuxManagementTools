@@ -92,8 +92,7 @@ static void search_directory(const char *directory_path, const char *filename,
         const int length = snprintf(full_path, sizeof(full_path), "%s/%s", directory_path, entry->d_name);
 
         if (length < 0 || (size_t)length >= sizeof(full_path)) {
-            fprintf(stderr, "Path is too long: %s/%s\n",
-                    directory_path, entry->d_name);
+            fprintf(stderr, "Path is too long: %s/%s\n", directory_path, entry->d_name);
             continue;
         }
 
@@ -102,8 +101,8 @@ static void search_directory(const char *directory_path, const char *filename,
          */
         int matches;
 
-        if (case_insensitive) { matches = (strcasecmp(entry->d_name, filename) == 0); }
-        else { matches = (strcmp(entry->d_name, filename) == 0); }
+        if (case_insensitive) { matches = strcasecmp(entry->d_name, filename) == 0; }
+        else { matches = strcmp(entry->d_name, filename) == 0; }
 
         if (matches) { send_result(pipe_fd, filename, full_path); }
 
@@ -143,8 +142,7 @@ static void child_search(const char *search_path, const char *filename,
     struct stat information;
 
     if (lstat(search_path, &information) == -1) {
-        fprintf(stderr, "Cannot access '%s': %s\n",
-                search_path, strerror(errno));
+        fprintf(stderr, "Cannot access '%s': %s\n", search_path, strerror(errno));
         close(pipe_fd);
         exit(EXIT_FAILURE);
     }
