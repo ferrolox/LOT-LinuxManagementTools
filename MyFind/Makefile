@@ -1,7 +1,7 @@
 CC = cc
 CFLAGS = -Wall -Wextra -Wpedantic -std=c17
 
-TARGET = myFind
+TARGET = MyFind
 SOURCE = main.c
 
 .PHONY: all clean
