@@ -1,12 +1,6 @@
-cmake_minimum_required(VERSION 4.3)
-project(Projects C)
+cmake_minimum_required(VERSION 3.20)
+project(LOT_LinuxManagementTools)
 
-set(CMAKE_C_STANDARD 11)
-
-include_directories(.)
-include_directories(MyFind)
-
-add_executable(Projects
-        MyFind/main.c
-        MyFind/main.c
-        MyFind/main.c)
+add_subdirectory(MyFind)
+add_subdirectory(TWMailerBasic)
+add_subdirectory(TWMailerPro)
