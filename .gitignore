@@ -2,6 +2,6 @@
 
 /MyFind/MyFind
 /TWMailer/Server/TWMailerServer
-/TWMailer/Server/TWMailerClient
+/TWMailer/Client/TWMailerClient
 
 *.zip
