@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -31,6 +32,7 @@ typedef struct
     char *name;
 } MailFile;
 
+// A dynamic buffer allows messages to grow without requiring a fixed maximum size.
 static int append(Buffer *b, const char *s, size_t n)
 {
     if (n > SIZE_MAX - b->len - 1)
@@ -76,7 +78,7 @@ static void clear_buffer(Buffer *b)
     *b = (Buffer){0};
 }
 
-
+// Read one protocol line at a time to avoid consuming data belonging to the next field.
 static int read_line(int fd, Buffer *out, size_t max)   //0=success, 1=EOF, -1=error/oversize.
 {
     out->len = 0;
@@ -127,6 +129,7 @@ static int read_line(int fd, Buffer *out, size_t max)   //0=success, 1=EOF, -1=e
     }
 }
 
+// TCP may send only part of a buffer, so keep sending until all bytes are transmitted.
 static int send_all(int fd, const char *s, size_t len)
 {
     while (len)
@@ -154,6 +157,7 @@ static int reply(int fd, const char *s)
     return send_all(fd, s, strlen(s));
 }
 
+// Validate usernames before using them to construct filesystem paths.
 static int valid_user(const char *s)
 {
     size_t n = strlen(s);
@@ -179,6 +183,7 @@ static int user_dir(char *dst, size_t cap, const char *root, const char *user)
     return n >= 0 && (size_t)n < cap ? 0 : -1;
 }
 
+// An existing path is accepted only if it is actually a directory.
 static int mkdir_if_missing(const char *path)
 {
     if (mkdir(path, 0700) == 0)
@@ -193,7 +198,6 @@ static int mkdir_if_missing(const char *path)
 
     struct stat st;
 
-
     return stat(path, &st) == 0 && S_ISDIR(st.st_mode) ? 0 : -1;
 }
 
@@ -202,6 +206,7 @@ static int file_cmp(const void *a, const void *b)
     const MailFile *x=a, *y=b;
     return (x->id > y->id) - (x->id < y->id);
 }
+
 static void free_files(MailFile *files, size_t n)
 {
     for (size_t i=0;i<n;i++)
@@ -211,6 +216,7 @@ static void free_files(MailFile *files, size_t n)
 
     free(files);
 }
+
 static int parse_filename(const char *s, unsigned long long *id)
 {
     if (*s < '0' || *s > '9')
@@ -230,6 +236,7 @@ static int parse_filename(const char *s, unsigned long long *id)
     *id = v; return 1;
 }
 
+// Collect valid message files and sort them by ID to provide consistent message numbering.
 static int list_files(const char *dir, MailFile **result, size_t *count)    //increasing ID order
 {
     *result = NULL; *count = 0;
@@ -329,6 +336,7 @@ static int write_all_file(int fd, const char *s, size_t len)
     return 0;
 }
 
+// Write to a temporary file first so incomplete messages are not exposed as valid mail files.
 static int save_mail(const char *root, const char *receiver, const Buffer *mail)
 {
     char dir[PATH_MAX], tmp[PATH_MAX], final[PATH_MAX];
@@ -403,6 +411,8 @@ static int save_mail(const char *root, const char *receiver, const Buffer *mail)
     }
     return ok;
 }
+
+// The subject is the third line of each stored message, after sender and receiver.
 static int send_subject(int client, const char *path)
 {
     FILE *f=fopen(path,"rb");
@@ -436,6 +446,7 @@ static int send_subject(int client, const char *path)
     fclose(f);
     return status;
 }
+
 static int handle_send(int client, const char *root)
 {
     Buffer line={0}, mail={0};
@@ -473,6 +484,7 @@ static int handle_send(int client, const char *root)
         }
     }
 
+    // Continue consuming the body even when metadata is invalid to keep the protocol synchronized.
     for (;;)
     {
         if (read_line(client,&line,0))
@@ -544,6 +556,7 @@ static int handle_list(int client, const char *root)
         clear_buffer(&user);
         return status;
 }
+
 static int parse_index(const char *s, size_t *out)
 {
     if (!s || !*s)
@@ -567,6 +580,8 @@ static int parse_index(const char *s, size_t *out)
 
     *out=(size_t)v; return 0;
 }
+
+// LIST, READ and DEL use the same sorted file list so their message numbers stay consistent.
 static int handle_read_del(int client, const char *root, int del)
 {
     Buffer user={0}, number={0}; char dir[PATH_MAX], path[PATH_MAX];
@@ -630,6 +645,7 @@ static int handle_read_del(int client, const char *root, int del)
         return status;
 }
 
+// Each client can issue multiple commands over one connection until QUIT or a communication error.
 static void handle_client(int client, const char *root)
 {
     Buffer command={0};
@@ -706,6 +722,7 @@ int main(int argc, char **argv) {
     addr.sin_family=AF_INET; addr.sin_addr.s_addr=htonl(INADDR_ANY);
     addr.sin_port=htons((uint16_t)port);
 
+    // Bind to all IPv4 interfaces and listen for one client at a time.
     if (bind(server,(struct sockaddr *)&addr,sizeof(addr))<0 || listen(server,5)<0) {
         perror("bind/listen");
         close(server);
