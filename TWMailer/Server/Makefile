@@ -1,11 +1,15 @@
 CC = gcc
-CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2
+CFLAGS = -Wall -Wextra -Wpedantic -std=c11 -O2
+
+TARGET = TWMailerServer
+SOURCE = main.c
 
 .PHONY: all clean
-all: twmailer-server
 
-twmailer-server: twmailer-server.c
-	$(CC) $(CFLAGS) -o $@ $<
+all: $(TARGET)
+
+$(TARGET): $(SOURCE)
+	$(CC) $(CFLAGS) $(SOURCE) -o $(TARGET)
 
 clean:
-	rm -f twmailer-server
+	rm -f $(TARGET)

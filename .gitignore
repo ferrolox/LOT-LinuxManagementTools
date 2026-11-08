@@ -1,3 +1,7 @@
 .idea
 
+/MyFind/MyFind
+/TWMailer/Server/TWMailerServer
+/TWMailer/Server/TWMailerClient
+
 *.zip
