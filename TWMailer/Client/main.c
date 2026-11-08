@@ -19,6 +19,7 @@ static int read_input(const char *prompt, char **buffer, size_t *capacity) {
     printf("%s", prompt);
     fflush(stdout);
 
+    // getline() avoids fixed input limits for user-provided fields and messages.
     ssize_t length = getline(buffer, capacity, stdin);
 
     if (length < 0) return feof(stdin) ? 0 : -1;
@@ -28,6 +29,7 @@ static int read_input(const char *prompt, char **buffer, size_t *capacity) {
     return 1;
 }
 
+// Validate usernames locally to avoid sending requests the server would reject.
 static int valid_user(const char *username) {
     size_t length = strlen(username);
 
@@ -79,7 +81,7 @@ static int read_message_number(int *number) {
     return 1;
 }
 
-/* TCP may transmit only part of a buffer in one send() call. */
+// TCP may transmit only part of a buffer, so the remaining bytes must be sent separately.
 static int send_all(int socket_fd, const char *buffer, size_t length) {
     size_t total_sent = 0;
 
@@ -105,7 +107,7 @@ static int send_line(int socket_fd, const char *line) {
     return send_all(socket_fd, "\n", 1);
 }
 
-/* Read one byte at a time so that a line read cannot consume bytes belonging to the next protocol field. */
+// Reading one byte at a time prevents consuming data from subsequent protocol fields.
 static int read_line(int socket_fd, char **buffer, size_t *capacity) {
     size_t length = 0;
 
@@ -144,6 +146,7 @@ static int read_line(int socket_fd, char **buffer, size_t *capacity) {
             return 1;
         }
 
+        // Resize dynamically to support longer lines without overflowing the buffer.
         if (length + 1 >= *capacity) {
             if (*capacity > SIZE_MAX / 2) {
                 fprintf(stderr, "Response line is too large.\n");
@@ -196,6 +199,7 @@ static int receive_status(int socket_fd) {
     return result;
 }
 
+// The message body is transmitted line by line because its length is unrestricted.
 static int handle_send(int socket_fd) {
     char *sender = NULL;
     char *receiver = NULL;
@@ -267,6 +271,7 @@ static int handle_send(int socket_fd) {
     return result;
 }
 
+// The server sends the message count first, determining how many subject lines to receive.
 static int handle_list(int socket_fd) {
     char *username = NULL;
     size_t capacity = 0;
@@ -329,6 +334,7 @@ static int handle_list(int socket_fd) {
     return 0;
 }
 
+// The stored message ends with a dot line, which marks the end of the server response.
 static int handle_read(int socket_fd) {
     char *username = NULL;
     size_t capacity = 0;
@@ -435,6 +441,7 @@ static int handle_delete(int socket_fd) {
     return receive_status(socket_fd);
 }
 
+// Try each resolved address because an address may be unavailable even if resolution succeeds.
 static int connect_to_server(const char *ip, const char *port) {
     struct addrinfo hints;
     struct addrinfo *server_addresses;
@@ -474,6 +481,7 @@ static int connect_to_server(const char *ip, const char *port) {
     return socket_fd;
 }
 
+// Keep one TCP connection open and dispatch commands until the user disconnects.
 static void command_loop(int socket_fd) {
     char *command = NULL;
     size_t capacity = 0;
